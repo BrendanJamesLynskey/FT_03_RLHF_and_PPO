@@ -1,0 +1,761 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FT 03 — RLHF and PPO</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #0a0a0a;
+            --bg-card: #0d1117;
+            --bg-code: #161b22;
+            --text-primary: #e6edf3;
+            --text-secondary: #8b949e;
+            --accent: #76B900;
+            --accent-dim: #76B90044;
+            --accent-glow: #76B90033;
+            --border: #21262d;
+            --font-display: 'Space Grotesk', sans-serif;
+            --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+            --font-body: 'Inter', sans-serif;
+            --max-width: 900px;
+        }
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        html { scroll-behavior: smooth; }
+        body {
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            font-family: var(--font-body);
+            font-size: 17px;
+            line-height: 1.7;
+            overflow-x: hidden;
+        }
+        .hero {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 2rem 1.5rem;
+            text-align: center;
+            position: relative;
+        }
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 600px;
+            height: 600px;
+            background: radial-gradient(circle, var(--accent-glow) 0%, transparent 70%);
+            pointer-events: none;
+            z-index: 0;
+        }
+        .hero > * { position: relative; z-index: 1; }
+        .series-label {
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            color: var(--accent);
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            margin-bottom: 1rem;
+        }
+        .hero h1 {
+            font-family: var(--font-display);
+            font-size: clamp(2rem, 5vw, 3.2rem);
+            font-weight: 700;
+            color: var(--text-primary);
+            line-height: 1.2;
+            margin-bottom: 1rem;
+        }
+        .hero h1 .accent { color: var(--accent); }
+        .hero .subtitle {
+            font-size: 1.1rem;
+            color: var(--text-secondary);
+            max-width: 640px;
+            margin-bottom: 2rem;
+        }
+        .tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            justify-content: center;
+            margin-bottom: 2.5rem;
+        }
+        .tag {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            padding: 0.25rem 0.75rem;
+            border-radius: 999px;
+            border: 1px solid var(--accent);
+            color: var(--accent);
+            background: var(--accent-dim);
+            white-space: nowrap;
+        }
+        .pipeline {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: center;
+            gap: 0.25rem;
+            margin-bottom: 1rem;
+            max-width: var(--max-width);
+        }
+        .pipeline-step {
+            font-family: var(--font-mono);
+            font-size: 0.7rem;
+            padding: 0.3rem 0.7rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            color: var(--text-secondary);
+            white-space: nowrap;
+        }
+        .pipeline-arrow { color: var(--accent); font-size: 0.9rem; font-weight: 700; }
+        .slide {
+            min-height: 100vh;
+            max-width: var(--max-width);
+            margin: 0 auto;
+            padding: 4rem 1.5rem;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+        .slide-number {
+            font-family: var(--font-display);
+            font-size: 5rem;
+            font-weight: 700;
+            color: var(--accent-dim);
+            position: absolute;
+            top: 2rem;
+            right: 1.5rem;
+            line-height: 1;
+            user-select: none;
+        }
+        .slide h2 {
+            font-family: var(--font-display);
+            font-size: 1.9rem;
+            font-weight: 700;
+            color: var(--accent);
+            margin-bottom: 1.5rem;
+            line-height: 1.25;
+        }
+        .slide h3 {
+            font-family: var(--font-display);
+            font-size: 1.3rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-top: 1.5rem;
+            margin-bottom: 0.75rem;
+        }
+        .slide p { margin-bottom: 1rem; color: var(--text-secondary); }
+        .slide p strong { color: var(--text-primary); }
+        .slide ul, .slide ol { margin-bottom: 1rem; padding-left: 1.5rem; color: var(--text-secondary); }
+        .slide li { margin-bottom: 0.4rem; }
+        .slide li strong { color: var(--text-primary); }
+        .slide code {
+            font-family: var(--font-mono);
+            font-size: 0.88em;
+            background: var(--bg-code);
+            border: 1px solid var(--border);
+            padding: 0.05rem 0.35rem;
+            border-radius: 3px;
+            color: #c9d1d9;
+        }
+        .code-block {
+            background: var(--bg-code);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            margin: 1.25rem 0;
+            overflow: hidden;
+        }
+        .code-header {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--accent);
+            background: rgba(118, 185, 0, 0.08);
+            padding: 0.4rem 1rem;
+            border-bottom: 1px solid var(--border);
+        }
+        .code-block pre { margin: 0; padding: 1rem; overflow-x: auto; }
+        .code-block code {
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            line-height: 1.6;
+            color: #c9d1d9;
+            background: transparent;
+            border: none;
+            padding: 0;
+        }
+        .kw { color: #ff7b72; }
+        .fn { color: #d2a8ff; }
+        .str { color: #a5d6ff; }
+        .cm { color: #8b949e; font-style: italic; }
+        .num { color: #79c0ff; }
+        .type { color: #ffa657; }
+        .dir { color: #ff7b72; }
+        .mac { color: #ffa657; }
+        .table-wrap {
+            overflow-x: auto;
+            margin: 1.25rem 0;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+        }
+        table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+        th {
+            background: var(--bg-code);
+            color: var(--accent);
+            font-weight: 600;
+            text-align: left;
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid var(--border);
+            font-family: var(--font-display);
+            white-space: nowrap;
+        }
+        td {
+            padding: 0.6rem 1rem;
+            border-bottom: 1px solid var(--border);
+            color: var(--text-secondary);
+        }
+        tr:last-child td { border-bottom: none; }
+        tr:nth-child(even) td { background: rgba(13, 17, 23, 0.5); }
+        .diagram-flow {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            margin: 1.5rem 0;
+            padding: 1.5rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+        }
+        .diagram-box {
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            padding: 0.5rem 1rem;
+            background: var(--bg-code);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text-primary);
+            text-align: center;
+            white-space: nowrap;
+        }
+        .diagram-box.accent { border-color: var(--accent); color: var(--accent); background: rgba(118, 185, 0, 0.08); }
+        .diagram-box.dim { color: var(--text-secondary); border-color: var(--border); }
+        .diagram-arrow { color: var(--accent); font-size: 1.3rem; font-weight: 700; }
+        .diagram-vertical {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.3rem;
+            margin: 1.5rem 0;
+            padding: 1.5rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+        }
+        .diagram-vertical .diagram-arrow { font-size: 1.1rem; }
+        .hierarchy {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            margin: 1.5rem 0;
+            padding: 1.5rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+        }
+        .hierarchy-level { display: flex; align-items: center; gap: 0.75rem; }
+        .hierarchy-label {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            min-width: 80px;
+            text-align: right;
+        }
+        .hierarchy-items { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+        .hierarchy-item {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            padding: 0.3rem 0.6rem;
+            border-radius: 4px;
+            background: var(--bg-code);
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+        }
+        .hierarchy-item.accent { border-color: var(--accent); color: var(--accent); background: rgba(118, 185, 0, 0.08); }
+        .diagram-grid {
+            display: grid;
+            gap: 0.75rem;
+            margin: 1.5rem 0;
+            padding: 1.5rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+        }
+        .diagram-grid.cols-2 { grid-template-columns: 1fr 1fr; }
+        .diagram-grid.cols-3 { grid-template-columns: 1fr 1fr 1fr; }
+        .diagram-panel {
+            padding: 1rem;
+            background: var(--bg-code);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+        }
+        .diagram-panel.accent-border { border-left: 3px solid var(--accent); }
+        .diagram-panel h4 {
+            font-family: var(--font-display);
+            font-size: 1rem;
+            color: var(--accent);
+            margin-bottom: 0.5rem;
+        }
+        .diagram-panel p, .diagram-panel ul { font-size: 0.85rem; }
+        .callout {
+            background: var(--bg-card);
+            border-left: 3px solid var(--accent);
+            border-radius: 0 8px 8px 0;
+            padding: 1rem 1.25rem;
+            margin: 1.25rem 0;
+        }
+        .callout p { margin-bottom: 0; }
+        .callout p + p { margin-top: 0.5rem; }
+        .callout .callout-label {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--accent);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-bottom: 0.3rem;
+        }
+        .contents-list { list-style: none; padding-left: 0; counter-reset: contents; }
+        .contents-list li {
+            counter-increment: contents;
+            padding: 0.6rem 0;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        .contents-list li:last-child { border-bottom: none; }
+        .contents-list li::before {
+            content: counter(contents, decimal-leading-zero);
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            color: var(--accent);
+            min-width: 2rem;
+        }
+        .contents-list a { color: var(--text-primary); text-decoration: none; transition: color 0.2s; }
+        .contents-list a:hover { color: var(--accent); }
+        .footer {
+            text-align: center;
+            padding: 3rem 1.5rem;
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+            border-top: 1px solid var(--border);
+            max-width: var(--max-width);
+            margin: 0 auto;
+        }
+        .footer a { color: var(--accent); text-decoration: none; }
+        .footer a:hover { text-decoration: underline; }
+        .canvas-wrap {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1rem;
+            margin: 1.25rem 0;
+            overflow-x: auto;
+        }
+        .canvas-wrap canvas, .canvas-wrap svg { display: block; margin: 0 auto; max-width: 100%; }
+        .badge {
+            display: inline-block;
+            font-family: var(--font-mono);
+            font-size: 0.65rem;
+            padding: 0.1rem 0.45rem;
+            border-radius: 999px;
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+            vertical-align: middle;
+            margin-left: 0.3rem;
+        }
+        .badge.ok    { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
+        .badge.warn  { border-color: #ffa657; color: #ffa657; background: rgba(255,166,87,0.08); }
+        .badge.bad   { border-color: #ff7b72; color: #ff7b72; background: rgba(255,123,114,0.08); }
+        @media (max-width: 640px) {
+            .slide { padding: 3rem 1rem; min-height: auto; }
+            .slide-number { font-size: 3rem; top: 1.5rem; right: 1rem; }
+            .slide h2 { font-size: 1.5rem; }
+            .diagram-grid.cols-2, .diagram-grid.cols-3 { grid-template-columns: 1fr; }
+            .pipeline { gap: 0.15rem; }
+            .pipeline-step { font-size: 0.6rem; padding: 0.2rem 0.4rem; }
+            .hero h1 { font-size: 1.8rem; }
+            table { font-size: 0.78rem; }
+        }
+    </style>
+</head>
+<body>
+<header class="hero">
+    <div class="series-label">Fine-Tuning &amp; PEFT Series &mdash; Presentation 03</div>
+    <h1>RLHF and <span class="accent">PPO</span></h1>
+    <p class="subtitle">Reward modelling from pairwise preferences, the PPO actor&ndash;critic loop, KL penalty, failure modes, and the compute cost of running three models simultaneously.</p>
+
+    <div class="tags">
+        <span class="tag">RLHF</span>
+        <span class="tag">PPO</span>
+        <span class="tag">Reward Model</span>
+        <span class="tag">KL Penalty</span>
+        <span class="tag">Bradley-Terry</span>
+        <span class="tag">GAE</span>
+        <span class="tag">TRL</span>
+        <span class="tag">Reward Hacking</span>
+    </div>
+
+    <div class="pipeline">
+        <span class="pipeline-step">SFT Model</span>
+        <span class="pipeline-arrow">&rarr;</span>
+        <span class="pipeline-step">Pref Data</span>
+        <span class="pipeline-arrow">&rarr;</span>
+        <span class="pipeline-step">Reward Model</span>
+        <span class="pipeline-arrow">&rarr;</span>
+        <span class="pipeline-step">PPO Actor</span>
+        <span class="pipeline-arrow">&rarr;</span>
+        <span class="pipeline-step">PPO Critic</span>
+        <span class="pipeline-arrow">&rarr;</span>
+        <span class="pipeline-step">KL Clamp</span>
+        <span class="pipeline-arrow">&rarr;</span>
+        <span class="pipeline-step">Policy Update</span>
+    </div>
+</header>
+
+<section class="slide" id="slide-00">
+    <div class="slide-number">00</div>
+    <h2>Topics We'll Cover</h2>
+    <ul class="contents-list">
+        <li><a href="#slide-01">From SFT to RLHF &mdash; What Supervised Can't Fix</a></li>
+        <li><a href="#slide-02">Reward Modelling &mdash; Pairwise Preferences, Bradley-Terry</a></li>
+        <li><a href="#slide-03">The PPO Loop &mdash; Actor, Critic, Reward, KL Penalty</a></li>
+        <li><a href="#slide-04">Hyperparameters &mdash; KL Coefficient, Clip Ratio, GAE Lambda</a></li>
+        <li><a href="#slide-05">Failure Modes &mdash; Reward Hacking, Mode Collapse, KL Spike</a></li>
+        <li><a href="#slide-06">Compute Reality &mdash; Three-Model VRAM, Distributed</a></li>
+        <li><a href="#slide-07">TRL Implementation Walkthrough</a></li>
+        <li><a href="#slide-08">When PPO Is Still the Right Tool</a></li>
+        <li><a href="#slide-09">What to Take Away</a></li>
+    </ul>
+</section>
+
+<section class="slide" id="slide-01">
+    <div class="slide-number">01</div>
+    <h2>From SFT to RLHF &mdash; What Supervised Can't Fix</h2>
+    <p>SFT teaches the model to imitate its training data. If the training data contains helpful responses, the model learns to produce helpful-looking responses. But imitation has a structural ceiling: <strong>you can only be as good as your data labels</strong>, and human labellers are expensive, inconsistent, and unable to evaluate subtle quality differences between nearly-equal responses.</p>
+
+    <div class="diagram-grid cols-2">
+        <div class="diagram-panel accent-border">
+            <h4>What SFT leaves on the table</h4>
+            <ul>
+                <li><strong>Ranking among good responses:</strong> labellers write one gold answer but cannot easily rank 16 generated candidates</li>
+                <li><strong>Subtle helpfulness signals:</strong> "concise but complete" vs "verbose but exhaustive" is hard to encode as a single label</li>
+                <li><strong>Refusal calibration:</strong> SFT models either over-refuse or under-refuse; the sweet spot requires a preference signal</li>
+                <li><strong>Sycophancy:</strong> SFT data written to please annotators bakes in agreement with the human regardless of correctness</li>
+            </ul>
+        </div>
+        <div class="diagram-panel accent-border">
+            <h4>What RLHF adds</h4>
+            <ul>
+                <li><strong>Preference learning:</strong> humans rank outputs; the reward model learns a scalar from comparative judgements, not absolute scores</li>
+                <li><strong>Optimisation against the reward:</strong> PPO generates many candidate completions, scores them, and updates toward high-reward behaviour</li>
+                <li><strong>KL anchor:</strong> the KL penalty keeps the policy close to the SFT reference &mdash; prevents the model from exploiting reward model blind spots</li>
+                <li><strong>Online exploration:</strong> the model generates novel outputs and gets feedback; SFT is purely offline</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="callout">
+        <div class="callout-label">Historical context</div>
+        <p>RLHF was described by OpenAI in the InstructGPT paper (2022), then refined in their early work on summarisation from human feedback (Stiennon et al., 2020). Anthropic extended it with Constitutional AI (2022). The core PPO loop has been largely stable since then &mdash; later work (DPO, GRPO) mostly replaces or simplifies it.</p>
+    </div>
+</section>
+
+<section class="slide" id="slide-02">
+    <div class="slide-number">02</div>
+    <h2>Reward Modelling &mdash; Pairwise Preferences, Bradley-Terry</h2>
+    <p>A reward model (RM) is a language model with its final next-token-prediction head replaced by a single scalar output layer. It takes a (prompt, completion) pair and outputs a scalar score indicating quality. Training data is <strong>pairwise comparisons</strong>: for each prompt, human raters see two completions and pick the preferred one.</p>
+
+    <h3>Bradley-Terry Loss</h3>
+    <p>Given a chosen completion <em>y<sub>w</sub></em> ("winner") and a rejected completion <em>y<sub>l</sub></em> ("loser") for prompt <em>x</em>, the Bradley-Terry model defines the probability that <em>y<sub>w</sub></em> is preferred:</p>
+
+    <div class="canvas-wrap">
+        <svg viewBox="0 0 700 110" width="700" height="110" xmlns="http://www.w3.org/2000/svg">
+            <style>
+                .fml { font-family: 'JetBrains Mono', monospace; font-size: 14px; fill: #e6edf3; }
+                .fmlacc { fill: #76B900; font-weight: 700; }
+                .fmlann { font-family: 'Inter', sans-serif; font-size: 11px; fill: #8b949e; }
+            </style>
+            <text x="30" y="40" class="fml">P(y</text>
+            <text x="70" y="47" style="font-family:'JetBrains Mono',monospace;font-size:10px;fill:#8b949e;">w</text>
+            <text x="77" y="40" class="fml"> &gt; y</text>
+            <text x="115" y="47" style="font-family:'JetBrains Mono',monospace;font-size:10px;fill:#8b949e;">l</text>
+            <text x="123" y="40" class="fml"> | x) = &sigma;(</text>
+            <text x="218" y="40" class="fml fmlacc">r(x, y</text>
+            <text x="286" y="47" style="font-family:'JetBrains Mono',monospace;font-size:10px;fill:#76B900;">w</text>
+            <text x="293" y="40" class="fml fmlacc">)</text>
+            <text x="310" y="40" class="fml"> &minus; </text>
+            <text x="340" y="40" class="fml fmlacc">r(x, y</text>
+            <text x="408" y="47" style="font-family:'JetBrains Mono',monospace;font-size:10px;fill:#76B900;">l</text>
+            <text x="415" y="40" class="fml fmlacc">)</text>
+            <text x="430" y="40" class="fml">)</text>
+            <text x="30"  y="75" class="fmlann">Loss = &minus;log P = &minus;log &sigma;(r_w &minus; r_l)  &mdash;  minimise this over all pairwise examples</text>
+            <text x="30"  y="95" class="fmlann">Practical note: margin loss adds a constant margin m to the difference, preventing reward saturation</text>
+        </svg>
+    </div>
+
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>Design choice</th><th>Options</th><th>Trade-offs</th></tr></thead>
+            <tbody>
+                <tr><td>RM base model size</td><td>Same as policy or 2&ndash;3&times; smaller</td><td>Larger RM better calibrates fine-grained quality; smaller RM trains faster, fits on fewer GPUs</td></tr>
+                <tr><td>Preference collection</td><td>Human raters, LLM-as-judge (RLAIF)</td><td>Human: higher quality, expensive; LLM: cheap, scalable, but inherits model biases</td></tr>
+                <tr><td>Ties / equal pairs</td><td>Discard or model as 0.5 probability</td><td>Discarding is simpler; modelling ties reduces dataset waste by ~15 %</td></tr>
+                <tr><td>Multi-attribute RM</td><td>Single scalar vs separate helpfulness/safety heads</td><td>Separate heads allow Pareto-optimal trade-offs; single scalar is simpler to train and use</td></tr>
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<section class="slide" id="slide-03">
+    <div class="slide-number">03</div>
+    <h2>The PPO Loop &mdash; Actor, Critic, Reward, KL Penalty</h2>
+    <p>Proximal Policy Optimisation (Schulman et al., 2017) is the RL algorithm at the heart of most RLHF implementations. In the LLM context it operates on entire completion sequences as single actions.</p>
+
+    <div class="diagram-vertical">
+        <div class="diagram-box accent">1. Rollout: Actor (&pi;<sub>&theta;</sub>) generates completion y given prompt x</div>
+        <div class="diagram-arrow">&darr;</div>
+        <div class="diagram-box">2. Reward: r(x,y) from reward model; KL penalty: &minus;&beta; log(&pi;<sub>&theta;</sub>(y|x) / &pi;<sub>ref</sub>(y|x))</div>
+        <div class="diagram-arrow">&darr;</div>
+        <div class="diagram-box">3. Advantage estimate: A<sub>t</sub> via GAE using Critic V<sub>&phi;</sub>(x)</div>
+        <div class="diagram-arrow">&darr;</div>
+        <div class="diagram-box accent">4. PPO update: clip((&pi;<sub>&theta;</sub>/&pi;<sub>old</sub>)&middot;A, 1&minus;&epsilon;, 1+&epsilon;) &mdash; prevents large policy jumps</div>
+        <div class="diagram-arrow">&darr;</div>
+        <div class="diagram-box">5. Critic update: minimise (V<sub>&phi;</sub>(x) &minus; returns)<sup>2</sup></div>
+        <div class="diagram-arrow">&uarr;</div>
+        <div class="diagram-box dim">Repeat for N epochs per rollout batch; then collect fresh rollouts</div>
+    </div>
+
+    <div class="callout">
+        <div class="callout-label">The KL penalty is not optional</div>
+        <p>The total reward is <strong>r<sub>total</sub> = r<sub>RM</sub>(x,y) &minus; &beta; &middot; KL(&pi;<sub>&theta;</sub> || &pi;<sub>ref</sub>)</strong>. Without the KL penalty the actor quickly discovers degenerate completions that fool the reward model &mdash; this is reward hacking. The reference policy &pi;<sub>ref</sub> is the SFT model, frozen throughout PPO. A typical starting value for &beta; is 0.02&ndash;0.1; higher values keep the policy closer to SFT at the cost of reward-signal responsiveness.</p>
+    </div>
+</section>
+
+<section class="slide" id="slide-04">
+    <div class="slide-number">04</div>
+    <h2>Hyperparameters &mdash; KL Coefficient, Clip Ratio, GAE Lambda</h2>
+    <p>PPO has more hyperparameters than SFT, and they interact. Here are the ones that matter most and sensible starting ranges for LLM RLHF.</p>
+
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>Hyperparameter</th><th>Symbol</th><th>Typical range</th><th>Effect of raising</th></tr></thead>
+            <tbody>
+                <tr><td>KL penalty coefficient</td><td>&beta;</td><td>0.02&ndash;0.2</td><td>More conservative; policy stays closer to SFT; slower reward improvement</td></tr>
+                <tr><td>PPO clip ratio</td><td>&epsilon;</td><td>0.1&ndash;0.2</td><td>Allows larger policy steps; can destabilise training if &gt;0.3</td></tr>
+                <tr><td>GAE lambda</td><td>&lambda;</td><td>0.9&ndash;0.99</td><td>Higher: lower variance, higher bias in advantage estimates; 0.95 is a good default</td></tr>
+                <tr><td>Rollout batch size</td><td>&mdash;</td><td>64&ndash;512</td><td>Larger = more stable gradient estimates; must fit in VRAM during rollout phase</td></tr>
+                <tr><td>PPO epochs per rollout</td><td>K</td><td>1&ndash;4</td><td>More reuse of rollout data; risk of off-policy distribution shift beyond K=4</td></tr>
+                <tr><td>Value loss coefficient</td><td>c<sub>v</sub></td><td>0.1&ndash;1.0</td><td>Weights critic update relative to actor; 0.1 is typical for LLMs (critic is secondary)</td></tr>
+                <tr><td>Entropy bonus</td><td>c<sub>e</sub></td><td>0.0&ndash;0.01</td><td>Encourages exploration; prevents premature mode collapse on the output distribution</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="callout">
+        <div class="callout-label">Adaptive KL (OpenAI approach)</div>
+        <p>Rather than fixing &beta;, set a target KL divergence (e.g. 0.05 nats/token) and adjust &beta; up if KL exceeds target, down if KL is too low. This is implemented in TRL's <code>PPOTrainer</code> via <code>target_kl</code> and <code>adaptive_kl_ctrl=True</code>. The adaptive controller prevents both runaway divergence (high KL, reward hacking) and stagnation (near-zero KL, no learning).</p>
+    </div>
+</section>
+
+<section class="slide" id="slide-05">
+    <div class="slide-number">05</div>
+    <h2>Failure Modes &mdash; Reward Hacking, Mode Collapse, KL Spike</h2>
+    <p>PPO for LLMs has a richer failure-mode taxonomy than standard RL because the action space (natural language) is so vast and the reward signal (a neural network) is so gameable.</p>
+
+    <div class="diagram-grid cols-3">
+        <div class="diagram-panel accent-border">
+            <h4>Reward Hacking</h4>
+            <p>The policy finds completions that score highly on the reward model but are clearly bad to humans. Classic examples: <strong>repetitive praise</strong> (the RM was trained on helpful-sounding text &rarr; model learns to produce effusive compliments), <strong>length bias</strong> (if RM conflates length with quality, model outputs extremely long responses), <strong>format exploitation</strong> (bullet points score higher &rarr; model bullet-points everything).</p>
+            <p><strong>Mitigations:</strong> KL penalty, stronger RM, diverse preference data, reward normalisation.</p>
+        </div>
+        <div class="diagram-panel accent-border">
+            <h4>Mode Collapse</h4>
+            <p>The policy collapses to a narrow set of safe, generic completions. The model learns "I can't help with that" or "That's a great question!" are safe high-reward responses and over-produces them.</p>
+            <p><strong>Mitigations:</strong> entropy bonus in PPO objective, diversity reward, broad prompt distribution in rollouts, curriculum (easier prompts first).</p>
+        </div>
+        <div class="diagram-panel accent-border">
+            <h4>KL Spike</h4>
+            <p>A sudden large divergence from the reference policy, often after a few thousand steps. The policy jumps to a high-reward region but the reward model has poor coverage there, causing instability. Frequently correlated with learning rate spikes or gradient explosions.</p>
+            <p><strong>Mitigations:</strong> gradient clipping (1.0), warm restart of &beta;, smaller learning rate (&le;1e-6 for 7B), monitor token-level KL per step.</p>
+        </div>
+    </div>
+
+    <div class="callout">
+        <div class="callout-label">Goodhart's Law in RL</div>
+        <p>"When a measure becomes a target, it ceases to be a good measure." The reward model is a proxy for human preferences; optimising it directly will eventually over-fit to the proxy's imperfections. The Overoptimisation paper (Gao et al., 2023) showed that beyond ~5&ndash;10 &times; initial reward gain, gold-label human quality typically starts declining even as RM score keeps rising.</p>
+    </div>
+</section>
+
+<section class="slide" id="slide-06">
+    <div class="slide-number">06</div>
+    <h2>Compute Reality &mdash; Three-Model VRAM, Distributed</h2>
+    <p>Full RLHF with PPO requires four model copies loaded simultaneously: <strong>actor</strong> (training), <strong>critic</strong> (training), <strong>reference policy</strong> (frozen SFT), and <strong>reward model</strong> (frozen). In practice the actor and critic often share the backbone with separate output heads, reducing this to three distinct weight sets.</p>
+
+    <div class="table-wrap">
+        <table>
+            <thead><tr><th>Component</th><th>Precision</th><th>Training?</th><th>VRAM (7B base)</th></tr></thead>
+            <tbody>
+                <tr><td>Actor (&pi;<sub>&theta;</sub>)</td><td>bf16 + Adam fp32</td><td>Yes</td><td>~98 GB (full); ~10 GB (QLoRA)</td></tr>
+                <tr><td>Critic (V<sub>&phi;</sub>)</td><td>bf16 + Adam fp32</td><td>Yes (value head only)</td><td>~56 GB base + 4 B value head (full); ~6 GB (QLoRA)</td></tr>
+                <tr><td>Reference policy (&pi;<sub>ref</sub>)</td><td>bf16 inference only</td><td>No</td><td>~14 GB</td></tr>
+                <tr><td>Reward model</td><td>bf16 inference only</td><td>No</td><td>~14 GB</td></tr>
+                <tr><td><strong>Total (full FT, 7B)</strong></td><td></td><td></td><td><strong>&asymp; 182 GB+</strong> &mdash; requires 4&times; A100 80 GB</td></tr>
+                <tr><td><strong>Total (QLoRA, 7B)</strong></td><td></td><td></td><td><strong>&asymp; 44 GB</strong> &mdash; fits 2&times; A100 40 GB</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <h3>Distributed Strategies</h3>
+    <p>For 70B+ models, DeepSpeed ZeRO-3 is standard: shard actor and critic states across all GPUs; keep ref policy and RM on separate GPU sets or offload to CPU RAM during the rollout phase. The rollout phase (inference) and the update phase (training) have different memory profiles &mdash; some pipelines alternate device allocation between phases.</p>
+
+    <div class="callout">
+        <div class="callout-label">TRL DeepSpeed config</div>
+        <p>TRL's <code>PPOTrainer</code> accepts a <code>deepspeed</code> config dict. Set <code>stage: 3</code> for actor/critic sharding. Ref policy and RM can be loaded in <code>stage: 0</code> (replicated) if they fit, or <code>stage: 3</code> if not. Set <code>offload_optimizer_device: cpu</code> to move Adam state to RAM, freeing ~48 GB VRAM for a 7B actor at the cost of ~1.5&times; slower optimiser steps.</p>
+    </div>
+</section>
+
+<section class="slide" id="slide-07">
+    <div class="slide-number">07</div>
+    <h2>TRL Implementation Walkthrough</h2>
+    <p>TRL (Transformer Reinforcement Learning, HuggingFace) provides <code>PPOTrainer</code> that handles rollout collection, reward scoring, and PPO updates. The minimal working loop is straightforward:</p>
+
+    <div class="code-block">
+        <div class="code-header">trl &ge;0.9 PPOTrainer minimal loop</div>
+<pre><code><span class="kw">from</span> trl <span class="kw">import</span> <span class="type">PPOTrainer</span>, <span class="type">PPOConfig</span>, <span class="type">AutoModelForCausalLMWithValueHead</span>
+<span class="kw">from</span> transformers <span class="kw">import</span> <span class="type">AutoTokenizer</span>
+
+config = <span class="type">PPOConfig</span>(
+    model_name=<span class="str">"meta-llama/Meta-Llama-3-8B-Instruct"</span>,
+    learning_rate=<span class="num">1e-6</span>,
+    batch_size=<span class="num">64</span>,
+    mini_batch_size=<span class="num">16</span>,
+    gradient_accumulation_steps=<span class="num">4</span>,
+    ppo_epochs=<span class="num">4</span>,
+    kl_penalty=<span class="str">"kl"</span>,          <span class="cm"># "kl", "abs", "mse", "full"</span>
+    init_kl_coef=<span class="num">0.05</span>,
+    target_kl=<span class="num">0.05</span>,            <span class="cm"># adaptive KL target</span>
+    adap_kl_ctrl=<span class="kw">True</span>,
+    cliprange=<span class="num">0.2</span>,
+    vf_coef=<span class="num">0.1</span>,
+)
+
+model = <span class="type">AutoModelForCausalLMWithValueHead</span>.from_pretrained(config.model_name)
+ref_model = <span class="type">AutoModelForCausalLMWithValueHead</span>.from_pretrained(config.model_name)
+tokenizer = <span class="type">AutoTokenizer</span>.from_pretrained(config.model_name)
+
+trainer = <span class="type">PPOTrainer</span>(config, model, ref_model, tokenizer)
+
+<span class="kw">for</span> batch <span class="kw">in</span> dataloader:
+    queries      = batch[<span class="str">"input_ids"</span>]
+    responses    = trainer.generate(queries, max_new_tokens=<span class="num">256</span>)
+    rewards      = [reward_model(q, r) <span class="kw">for</span> q, r <span class="kw">in</span> zip(queries, responses)]
+    stats        = trainer.step(queries, responses, rewards)
+    trainer.log_stats(stats, batch, rewards)</code></pre>
+    </div>
+
+    <div class="callout">
+        <div class="callout-label">AutoModelForCausalLMWithValueHead</div>
+        <p>This TRL class wraps a standard causal LM and adds a linear value head on top of the last hidden state. The value head outputs V(x) &mdash; the critic's estimate of expected future reward from prompt x. During PPO the actor loss and critic loss are computed jointly; the original LM backbone weights are shared between both objectives.</p>
+    </div>
+</section>
+
+<section class="slide" id="slide-08">
+    <div class="slide-number">08</div>
+    <h2>When PPO Is Still the Right Tool</h2>
+    <p>DPO (Deck 04) and its cousins have dramatically simplified preference-based training for many tasks. But PPO retains real advantages in specific settings.</p>
+
+    <div class="diagram-grid cols-2">
+        <div class="diagram-panel accent-border">
+            <h4>PPO wins</h4>
+            <ul>
+                <li><strong>Online exploration:</strong> the policy generates novel completions and gets feedback &mdash; off-policy DPO datasets may not cover the behaviours you care about</li>
+                <li><strong>Non-differentiable rewards:</strong> code execution, formal verification, tool-use success, test-case pass rates &mdash; any reward that can't be computed from a static dataset requires the RL loop</li>
+                <li><strong>Iterative reward improvement:</strong> the reward model can be retrained on new rollout data; PPO naturally cycles reward-data-policy</li>
+                <li><strong>Long-horizon tasks:</strong> credit assignment across multi-step traces (chain-of-thought, agentic trajectories) is more natural in the RL framework</li>
+            </ul>
+        </div>
+        <div class="diagram-panel accent-border">
+            <h4>PPO loses</h4>
+            <ul>
+                <li><strong>You already have preference data:</strong> DPO is cheaper, no RM needed, no rollouts</li>
+                <li><strong>Single-turn short responses:</strong> most response quality can be captured from existing comparisons; rollout exploration adds cost with little benefit</li>
+                <li><strong>Small teams / limited compute:</strong> PPO requires 3&ndash;4 model copies; DPO needs only 2</li>
+                <li><strong>Instability tolerance is low:</strong> PPO has more failure modes and requires more careful tuning; DPO is simpler to stabilise</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="callout">
+        <div class="callout-label">The DeepSeek-R1 data point</div>
+        <p>DeepSeek-R1 (2025) used a variant of online RL (GRPO &mdash; covered in Deck 04) against a verifiable reward (math/code correctness) without a learned reward model at all. This is PPO's best use case: when you have a ground-truth reward signal, the reward model is the weakest link in the chain and replacing it with a verifier unlocks dramatic gains.</p>
+    </div>
+</section>
+
+<section class="slide" id="slide-09">
+    <div class="slide-number">09</div>
+    <h2>What to Take Away</h2>
+    <ul>
+        <li><strong>SFT imitates; RLHF optimises.</strong> RLHF provides a gradient signal from pairwise human comparisons, not from gold labels &mdash; this unlocks behaviours that imitation data can't encode.</li>
+        <li><strong>The reward model is trained with Bradley-Terry loss</strong> on pairwise preference data. It outputs a scalar; its accuracy caps the quality of everything downstream.</li>
+        <li><strong>PPO runs four roles simultaneously:</strong> actor (generates), critic (estimates value), reference policy (anchors KL), reward model (scores). VRAM is the hard constraint.</li>
+        <li><strong>The KL penalty is mandatory.</strong> Without it the actor exploits reward model gaps within thousands of steps. Set &beta; adaptively with a target KL of ~0.05 nats/token.</li>
+        <li><strong>Monitor KL, reward mean, and response entropy every step.</strong> KL spikes and mode collapse are detectable early; catching them before they diverge saves days of training.</li>
+        <li><strong>Goodhart's Law always applies.</strong> Reward model score and actual human quality diverge beyond ~5&ndash;10 &times; initial improvement. Use held-out human evals as a ground truth.</li>
+        <li><strong>PPO is still the right tool when rewards are verifiable and non-differentiable</strong> &mdash; code execution, math, formal verification. DPO wins for static preference datasets.</li>
+    </ul>
+
+    <div class="callout">
+        <div class="callout-label">Where to next</div>
+        <p>Deck 04 presents DPO and its cousins (IPO, KTO, ORPO, GRPO) &mdash; methods that achieve alignment quality comparable to PPO while eliminating the reward model, the rollout loop, or both. Deck 05 covers Constitutional AI and RLAIF, where the human labellers are replaced by a model following a written constitution.</p>
+    </div>
+</section>
+
+<footer class="footer">
+    <p>Part of the <a href="https://github.com/BrendanJamesLynskey/LLM_Hub_Fine_Tuning">Fine-Tuning &amp; PEFT Series</a></p>
+    <p style="margin-top: 0.5rem; font-size: 0.8rem;"><a href="https://github.com/BrendanJamesLynskey/LLM_Hub_Fine_Tuning">Back to Series Index</a></p>
+</footer>
+<script>
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+        anchor.addEventListener('click', function (e) {
+            e.preventDefault();
+            const target = document.querySelector(this.getAttribute('href'));
+            if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+    });
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                entry.target.style.opacity = '1';
+                entry.target.style.transform = 'translateY(0)';
+            }
+        });
+    }, { threshold: 0.1 });
+    document.querySelectorAll('.slide').forEach(slide => {
+        slide.style.opacity = '0';
+        slide.style.transform = 'translateY(30px)';
+        slide.style.transition = 'opacity 0.6s ease, transform 0.6s ease';
+        observer.observe(slide);
+    });
+</script>
+</body>
+</html>
