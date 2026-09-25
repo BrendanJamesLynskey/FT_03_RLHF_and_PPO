@@ -6,7 +6,7 @@
     <title>FT 03 — RLHF and PPO</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=Manrope:wght@300;400;500;600;700&family=Source+Code+Pro:ital,wght@0,400;0,500;0,600;0,700;1,400;1,700&display=swap" rel="stylesheet">
     <style>
         :root {
             --bg-primary: #0f2027;
@@ -18,9 +18,9 @@
             --accent-dim: #83c39544;
             --accent-glow: #83c39533;
             --border: #23404a;
-            --font-display: 'Space Grotesk', sans-serif;
-            --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
-            --font-body: 'Inter', sans-serif;
+            --font-display: 'Sora', sans-serif;
+            --font-mono: 'Source Code Pro', 'Source Code Pro', monospace;
+            --font-body: 'Manrope', sans-serif;
             --max-width: 900px;
         }
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -491,21 +491,21 @@
     <div class="canvas-wrap">
         <svg viewBox="0 0 700 110" width="700" height="110" xmlns="http://www.w3.org/2000/svg">
             <style>
-                .fml { font-family: 'JetBrains Mono', monospace; font-size: 14px; fill: #ede7dd; }
+                .fml { font-family: 'Source Code Pro', monospace; font-size: 14px; fill: #ede7dd; }
                 .fmlacc { fill: #83c395; font-weight: 700; }
-                .fmlann { font-family: 'Inter', sans-serif; font-size: 11px; fill: #8ca5a9; }
+                .fmlann { font-family: 'Manrope', sans-serif; font-size: 11px; fill: #8ca5a9; }
             </style>
             <text x="30" y="40" class="fml">P(y</text>
-            <text x="70" y="47" style="font-family:'JetBrains Mono',monospace;font-size:10px;fill:#8ca5a9;">w</text>
+            <text x="70" y="47" style="font-family:'Source Code Pro',monospace;font-size:10px;fill:#8ca5a9;">w</text>
             <text x="77" y="40" class="fml"> &gt; y</text>
-            <text x="115" y="47" style="font-family:'JetBrains Mono',monospace;font-size:10px;fill:#8ca5a9;">l</text>
+            <text x="115" y="47" style="font-family:'Source Code Pro',monospace;font-size:10px;fill:#8ca5a9;">l</text>
             <text x="123" y="40" class="fml"> | x) = &sigma;(</text>
             <text x="218" y="40" class="fml fmlacc">r(x, y</text>
-            <text x="286" y="47" style="font-family:'JetBrains Mono',monospace;font-size:10px;fill:#83c395;">w</text>
+            <text x="286" y="47" style="font-family:'Source Code Pro',monospace;font-size:10px;fill:#83c395;">w</text>
             <text x="293" y="40" class="fml fmlacc">)</text>
             <text x="310" y="40" class="fml"> &minus; </text>
             <text x="340" y="40" class="fml fmlacc">r(x, y</text>
-            <text x="408" y="47" style="font-family:'JetBrains Mono',monospace;font-size:10px;fill:#83c395;">l</text>
+            <text x="408" y="47" style="font-family:'Source Code Pro',monospace;font-size:10px;fill:#83c395;">l</text>
             <text x="415" y="40" class="fml fmlacc">)</text>
             <text x="430" y="40" class="fml">)</text>
             <text x="30"  y="75" class="fmlann">Loss = &minus;log P = &minus;log &sigma;(r_w &minus; r_l)  &mdash;  minimise this over all pairwise examples</text>
